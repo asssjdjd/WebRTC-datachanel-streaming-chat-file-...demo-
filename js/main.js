@@ -1,24 +1,30 @@
-'use strict';
+"use strict";
 
-import { initVideo, startLocalVideo, stopLocalVideo } from './video.js';
-import { initChat, setupDataChannels } from './chat.js';
+import {
+  initVideo,
+  startLocalVideo,
+  stopLocalVideo,
+  setupRemoteVideoEvents,
+} from "./video.js";
+import { initChat, setupDataChannels } from "./chat.js";
 
+const SERVER_URL = "http://localhost:8080";
+const socket = io(SERVER_URL);
 const offerOptions = {
   offerToReceiveVideo: 1,
-  offerToReceiveAudio: 0,
+  offerToReceiveAudio: 1,
 };
 
 export let localStream;
-export let localPeerConnection;
-export let remotePeerConnection;
+const peerConnections = {};
 
 let startTime = null;
 
 // Buttons
-const startButton = document.getElementById('startButton');
-const callButton = document.getElementById('callButton');
-const hangupButton = document.getElementById('hangupButton');
-const stopButton = document.getElementById('stopButton');
+const startButton = document.getElementById("startButton");
+const callButton = document.getElementById("callButton");
+const hangupButton = document.getElementById("hangupButton");
+const stopButton = document.getElementById("stopButton");
 
 callButton.disabled = true;
 hangupButton.disabled = true;
@@ -27,75 +33,107 @@ hangupButton.disabled = true;
 initVideo();
 initChat();
 
-// === Peer Connection Handlers ===
-function handleConnection(event) {
-  const peerConnection = event.target;
-  const iceCandidate = event.candidate;
+// === Signaling Server Handlers ===
+socket.on("connect", () => {
+  trace(`✅ Connected to signaling server with ID: ${socket.id}`);
+});
 
-  if (iceCandidate) {
-    const newIceCandidate = new RTCIceCandidate(iceCandidate);
-    const otherPeer = getOtherPeer(peerConnection);
-    otherPeer
-      .addIceCandidate(newIceCandidate)
-      .then(() => handleConnectionSuccess(peerConnection))
-      .catch((error) => handleConnectionFailure(peerConnection, error));
-    trace(`${getPeerName(peerConnection)} ICE candidate:\n${event.candidate.candidate}.`);
+socket.on("all-users", (users) => {
+  trace(`👥 Users already in room: ${users}`);
+  users.forEach((userID) => {
+    const pc = createPeerConnection(userID);
+    pc.createOffer(offerOptions).then((offer) => {
+      pc.setLocalDescription(new RTCSessionDescription(offer));
+      trace(`Sending offer to ${userID}`);
+      socket.emit("send-offer", {
+        userToSignal: userID,
+        callerID: socket.id,
+        signal: offer,
+      });
+    });
+  });
+});
+
+socket.on("user-joined", (userID) => {
+  trace(`👋 User joined: ${userID}`);
+});
+
+socket.on("offer-received", (payload) => {
+  trace(`🔔 Received offer from ${payload.callerID}`);
+  const pc = createPeerConnection(payload.callerID, true);
+  pc.setRemoteDescription(new RTCSessionDescription(payload.signal));
+  pc.createAnswer().then((answer) => {
+    pc.setLocalDescription(new RTCSessionDescription(answer));
+    trace(`Sending answer to ${payload.callerID}`);
+    socket.emit("send-answer", {
+      signal: answer,
+      callerID: payload.callerID,
+    });
+  });
+});
+socket.on("answer-received", (payload) => {
+  trace(`🤝 Received answer from ${payload.id}`);
+  const pc = peerConnections[payload.id];
+  pc.setRemoteDescription(new RTCSessionDescription(payload.signal));
+});
+socket.on("candidate-received", (payload) => {
+  const pc = peerConnections[payload.callerID];
+  if (pc) {
+    pc.addIceCandidate(new RTCIceCandidate(payload.signal));
   }
-}
+});
 
-function handleConnectionSuccess(peerConnection) {
-  trace(`${getPeerName(peerConnection)} addIceCandidate success.`);
-}
+socket.on("user-left", (id) => {
+  trace(`💨 User left: ${id}`);
+  if (peerConnections[id]) {
+    peerConnections[id].close();
+    delete peerConnections[id];
+  }
+  const videoToRemove = document.getElementById(`video-${id}`);
+  if (videoToRemove) {
+    videoToRemove.remove();
+  }
+});
 
-function handleConnectionFailure(peerConnection, error) {
-  trace(`${getPeerName(peerConnection)} failed to add ICE Candidate:\n${error.toString()}.`);
-}
+// === Peer Connection Handlers ===
+function createPeerConnection(partnerSocketId, isReceiver = false) {
+  const configuration = {};
+  const pc = new RTCPeerConnection(configuration);
 
-function handleConnectionChange(event) {
-  const peerConnection = event.target;
-  trace(`${getPeerName(peerConnection)} ICE state: ${peerConnection.iceConnectionState}.`);
-}
+  peerConnections[partnerSocketId] = pc;
 
-function setSessionDescriptionError(error) {
-  trace(`Failed to create session description: ${error.toString()}.`);
-}
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("send-candidate", {
+        userToSignal: partnerSocketId,
+        callerID: socket.id,
+        signal: event.candidate,
+      });
+    }
+  };
 
-function setDescriptionSuccess(peerConnection, functionName) {
-  const peerName = getPeerName(peerConnection);
-  trace(`${peerName} ${functionName} complete.`);
-}
+  pc.onaddstream = (event) => {
+    trace(`Received remote stream from ${partnerSocketId}`);
+    const videoGrid = document.getElementById("videoGrid");
+    const video = document.createElement("video");
 
-function setLocalDescriptionSuccess(peerConnection) {
-  setDescriptionSuccess(peerConnection, 'setLocalDescription');
-}
+    video.id = `video-${partnerSocketId}`;
+    video.srcObject = event.stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    setupRemoteVideoEvents(video);
+    videoGrid.appendChild(video);
+  };
 
-function setRemoteDescriptionSuccess(peerConnection) {
-  setDescriptionSuccess(peerConnection, 'setRemoteDescription');
-}
+  pc.addStream(localStream);
 
-function createdOffer(description) {
-  trace(`Offer from localPeerConnection:\n${description.sdp}`);
-  localPeerConnection.setLocalDescription(description)
-    .then(() => setLocalDescriptionSuccess(localPeerConnection))
-    .catch(setSessionDescriptionError);
+  if (isReceiver) {
+    setupDataChannels(null, pc);
+  } else {
+    setupDataChannels(pc, null);
+  }
 
-  remotePeerConnection.setRemoteDescription(description)
-    .then(() => setRemoteDescriptionSuccess(remotePeerConnection))
-    .catch(setSessionDescriptionError);
-
-  remotePeerConnection.createAnswer()
-    .then(createdAnswer)
-    .catch(setSessionDescriptionError);
-}
-
-function createdAnswer(description) {
-  trace(`Answer from remotePeerConnection:\n${description.sdp}.`);
-  remotePeerConnection.setLocalDescription(description)
-    .then(() => setLocalDescriptionSuccess(remotePeerConnection))
-    .catch(setSessionDescriptionError);
-  localPeerConnection.setRemoteDescription(description)
-    .then(() => setRemoteDescriptionSuccess(localPeerConnection))
-    .catch(setSessionDescriptionError);
+  return pc;
 }
 
 // === Button Actions ===
@@ -114,70 +152,54 @@ function startAction() {
 function callAction() {
   callButton.disabled = true;
   hangupButton.disabled = false;
-  trace('Starting call.');
-  startTime = window.performance.now();
-
-  const configuration = {};
-
-  localPeerConnection = new RTCPeerConnection(configuration);
-  remotePeerConnection = new RTCPeerConnection(configuration);
-
-  localPeerConnection.addEventListener('icecandidate', handleConnection);
-  localPeerConnection.addEventListener('iceconnectionstatechange', handleConnectionChange);
-
-  remotePeerConnection.addEventListener('icecandidate', handleConnection);
-  remotePeerConnection.addEventListener('iceconnectionstatechange', handleConnectionChange);
-  
-  // Setup video stream
-  const remoteVideo = document.getElementById('remoteVideo');
-  remotePeerConnection.addEventListener('addstream', (event) => {
-    remoteVideo.srcObject = event.stream;
-    trace('Remote peer connection received remote stream.');
-  });
-
-  // Setup data channels for chat & file transfer
-  setupDataChannels(localPeerConnection, remotePeerConnection);
-
-  localPeerConnection.addStream(localStream);
-  trace('Added local stream to localPeerConnection.');
-
-  localPeerConnection.createOffer(offerOptions)
-    .then(createdOffer)
-    .catch(setSessionDescriptionError);
-  trace('localPeerConnection createOffer start.');
+  trace("Starting call.");
+  const roomID = prompt("Enter room name:");
+  if (roomID) {
+    socket.emit("join-room", roomID);
+  } else {
+    trace("Call cancelled, no room name provided.");
+    callButton.disabled = false;
+    hangupButton.disabled = true;
+  }
 }
 
 function hangupAction() {
-  trace('Ending call.');
-  localPeerConnection.close();
-  remotePeerConnection.close();
-  localPeerConnection = null;
-  remotePeerConnection = null;
+  trace("Ending call.");
+  socket.disconnect();
+  for (const id in peerConnections) {
+    peerConnections[id].close();
+  }
+  Object.keys(peerConnections).forEach((key) => delete peerConnections[key]);
+  clearRemoteVideos();
   hangupButton.disabled = true;
   callButton.disabled = false;
 }
 
 function stopAction() {
   stopLocalVideo();
+  if (socket.connected) socket.disconnect();
   startButton.disabled = false;
   callButton.disabled = true;
   hangupButton.disabled = true;
+  clearRemoteVideos();
+}
+
+function clearRemoteVideos() {
+  const videoGrid = document.getElementById("videoGrid");
+  videoGrid.childNodes.forEach((child) => {
+    if (child.id !== "localVideo") {
+      videoGrid.removeChild(child);
+    }
+  });
 }
 
 // Event listeners
-startButton.addEventListener('click', startAction);
-callButton.addEventListener('click', callAction);
-hangupButton.addEventListener('click', hangupAction);
-stopButton.addEventListener('click', stopAction);
+startButton.addEventListener("click", startAction);
+callButton.addEventListener("click", callAction);
+hangupButton.addEventListener("click", hangupAction);
+stopButton.addEventListener("click", stopAction);
 
 // === Helpers ===
-export function getOtherPeer(peerConnection) {
-  return peerConnection === localPeerConnection ? remotePeerConnection : localPeerConnection;
-}
-
-export function getPeerName(peerConnection) {
-  return peerConnection === localPeerConnection ? 'localPeerConnection' : 'remotePeerConnection';
-}
 
 export function trace(text) {
   text = text.trim();
