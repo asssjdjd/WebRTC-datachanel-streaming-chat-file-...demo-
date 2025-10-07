@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebRTC Demo with Chat & File Transfer</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+
+<body>
+  <h1>WebRTC Demo — Video + Chat + File Transfer</h1>
+
+  <video id="localVideo" autoplay playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <div>
+    <button id="startButton">Start</button>
+    <button id="callButton">Call</button>
+    <button id="hangupButton">Hang Up</button>
+    <button id="stopButton">Stop</button>
+    <button id="chatButton">Chat</button>
+  </div>
+
+  <div id="chatBox">
+    <div id="chatArea"></div>
+    <input type="text" id="chatInput" placeholder="Type message..." />
+    <button id="sendMsg">Send</button>
+    <br />
+    <input type="file" id="fileInput" />
+    <button id="sendFile">Send File</button>
+  </div>
+
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

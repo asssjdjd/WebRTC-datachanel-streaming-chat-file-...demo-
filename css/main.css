@@ -1,0 +1,35 @@
+body {
+  font-family: sans-serif;
+  margin: 20px;
+}
+
+video {
+  width: 45%;
+  margin-right: 10px;
+  border: 1px solid #ccc;
+}
+
+#chatBox {
+  display: none;
+  border: 1px solid #ccc;
+  padding: 10px;
+  width: 300px;
+  margin-top: 15px;
+}
+
+#chatArea {
+  height: 150px;
+  overflow-y: auto;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 5px;
+  padding: 5px;
+}
+
+#chatInput {
+  width: 70%;
+}
+
+button {
+  margin: 3px;
+  padding: 5px 10px;
+}
