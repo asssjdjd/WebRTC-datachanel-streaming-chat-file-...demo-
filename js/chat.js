@@ -1,6 +1,6 @@
 "use strict";
 
-import { trace } from "./main.js";
+import { trace } from "./client.js";
 import { handleFileMessage, sendFile } from "./file.js";
 
 const chatButton = document.getElementById("chatButton");

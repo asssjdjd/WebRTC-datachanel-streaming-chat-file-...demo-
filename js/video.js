@@ -1,6 +1,6 @@
 "use strict";
 
-import { trace } from "./main.js";
+import { trace } from "./client.js";
 
 const mediaStreamConstraints = {
   video: true,
@@ -8,7 +8,7 @@ const mediaStreamConstraints = {
 };
 
 const localVideo = document.getElementById("localVideo");
-const remoteVideo = document.getElementById("remoteVideo");
+// const remoteVideo = document.getElementById("remoteVideo");
 
 let startTime = null;
 
@@ -53,7 +53,32 @@ export function stopLocalVideo() {
   }
 }
 
+export function setLocalPreviewVisible(visible) {
+  if (!localVideo) return;
+  localVideo.style.display = visible ? "block" : "none";
+}
+
 export function setupRemoteVideoEvents(videoElement) {
   videoElement.addEventListener("loadedmetadata", logVideoLoaded);
   videoElement.addEventListener("resize", logResizedVideo);
+}
+
+
+// Share screen functionality
+export let _screenStream = null;
+
+export function startScreenShare() {
+  return navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then((screenStream) => {
+    // set preview to the screen stream and keep a reference so caller can stop it
+    _screenStream = screenStream;
+    localVideo.srcObject = screenStream;
+    return screenStream;
+  });
+}
+
+export function stopScreenShare() {
+  if (_screenStream) {
+    _screenStream.getTracks().forEach((t) => t.stop());
+    _screenStream = null;
+  }
 }

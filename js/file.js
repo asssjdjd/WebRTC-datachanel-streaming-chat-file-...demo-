@@ -1,6 +1,6 @@
 'use strict';
 
-import { trace } from './main.js';
+import { trace } from './client.js';
 import { appendMessage, getActiveChannel } from './chat.js';
 
 const sendFileBtn = document.getElementById('sendFile');
