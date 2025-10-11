@@ -1,0 +1,17 @@
+# Bỏ qua các dependencies đã được cài đặt cục bộ
+node_modules
+
+# Bỏ qua các file log
+npm-debug.log
+yarn-error.log
+
+# Bỏ qua thư mục build (nếu có)
+dist
+build
+
+# Bỏ qua các file cấu hình của môi trường
+.env
+.env.local
+
+# Bỏ qua thư mục của git
+.git

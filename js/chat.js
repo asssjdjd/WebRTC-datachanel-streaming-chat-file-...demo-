@@ -1,6 +1,6 @@
 "use strict";
 
-import { trace } from "./main.js";
+import { trace } from "./client.js";
 import { handleFileMessage, sendFile } from "./file.js";
 
 const chatButton = document.getElementById("chatButton");
@@ -21,7 +21,8 @@ export function initChat() {
 }
 
 function toggleChatBox() {
-  chatBox.style.display = chatBox.style.display === "none" ? "block" : "none";
+  const isHidden = chatBox.style.display === "none" || chatBox.style.display === "";
+  chatBox.style.display = isHidden ? "flex" : "none";
 }
 
 export function appendMessage(sender, message) {
@@ -29,6 +30,29 @@ export function appendMessage(sender, message) {
   div.innerHTML = `<b>${sender}:</b> ${message}`;
   chatArea.appendChild(div);
   chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+export function getShortDeviceName(userAgent) {
+  if (!userAgent) return "Unknown Device";
+
+  let browser = "Unknown Browser";
+  let os = "Unknown OS";
+
+  // OS detection
+  if (userAgent.includes("Win")) os = "Windows";
+  if (userAgent.includes("Mac")) os = "Mac";
+  if (userAgent.includes("Linux")) os = "Linux";
+  if (userAgent.includes("Android")) os = "Android";
+  if (userAgent.includes("like Mac") && userAgent.includes("iPhone")) os = "iPhone";
+  if (userAgent.includes("like Mac") && userAgent.includes("iPad")) os = "iPad";
+
+  // Browser detection (order is important)
+  if (userAgent.includes("Firefox")) browser = "Firefox";
+  if (userAgent.includes("Edg")) browser = "Edge";
+  else if (userAgent.includes("Chrome")) browser = "Chrome";
+  else if (userAgent.includes("Safari")) browser = "Safari";
+
+  return `${browser} on ${os}`;
 }
 
 function sendMessage() {
@@ -42,7 +66,7 @@ function sendMessage() {
   }
 
   appendMessage("You", msg);
-  channel.send(JSON.stringify({ text: msg }));
+  channel.send(JSON.stringify({ text: msg, senderName: getShortDeviceName(navigator.userAgent) }));
   chatInput.value = "";
 }
 
@@ -63,7 +87,7 @@ function handleDataMessage(event) {
       }
       // Regular text message
       else {
-        appendMessage("Remote", data.text || event.data);
+        appendMessage(data.senderName || "Remote", data.text || event.data);
       }
     } catch (e) {
       // Plain text message
