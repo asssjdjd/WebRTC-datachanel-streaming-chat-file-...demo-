@@ -1,21 +1,23 @@
-'use strict';
+"use strict";
 
-import { trace } from './main.js';
+import { trace } from "./main.js";
 
 const mediaStreamConstraints = {
   video: true,
-  audio: false,
+  audio: true,
 };
 
-const localVideo = document.getElementById('localVideo');
-const remoteVideo = document.getElementById('remoteVideo');
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
 
 let startTime = null;
 
 // === Video Events ===
 function logVideoLoaded(event) {
   const video = event.target;
-  trace(`${video.id} videoWidth: ${video.videoWidth}px, videoHeight: ${video.videoHeight}px.`);
+  trace(
+    `${video.id} videoWidth: ${video.videoWidth}px, videoHeight: ${video.videoHeight}px.`
+  );
 }
 
 function logResizedVideo(event) {
@@ -28,28 +30,30 @@ function logResizedVideo(event) {
 }
 
 export function initVideo() {
-  localVideo.addEventListener('loadedmetadata', logVideoLoaded);
-  remoteVideo.addEventListener('loadedmetadata', logVideoLoaded);
-  remoteVideo.addEventListener('resize', logResizedVideo);
-  
+  localVideo.addEventListener("loadedmetadata", logVideoLoaded);
   startTime = window.performance.now();
 }
 
 export function startLocalVideo() {
-  trace('Requesting local stream.');
-  return navigator.mediaDevices.getUserMedia(mediaStreamConstraints)
+  trace("Requesting local stream.");
+  return navigator.mediaDevices
+    .getUserMedia(mediaStreamConstraints)
     .then((mediaStream) => {
       localVideo.srcObject = mediaStream;
-      trace('Received local stream.');
+      trace("Received local stream.");
       return mediaStream;
     });
 }
 
 export function stopLocalVideo() {
-  trace('Stopping media.');
+  trace("Stopping media.");
   if (localVideo.srcObject) {
     localVideo.srcObject.getTracks().forEach((track) => track.stop());
     localVideo.srcObject = null;
   }
-  remoteVideo.srcObject = null;
+}
+
+export function setupRemoteVideoEvents(videoElement) {
+  videoElement.addEventListener("loadedmetadata", logVideoLoaded);
+  videoElement.addEventListener("resize", logResizedVideo);
 }

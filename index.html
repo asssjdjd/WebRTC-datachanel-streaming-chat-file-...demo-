@@ -8,10 +8,12 @@
 </head>
 
 <body>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <h1>WebRTC Demo — Video + Chat + File Transfer</h1>
 
-  <video id="localVideo" autoplay playsinline></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+   <div id="videoGrid">
+    <video id="localVideo" autoplay playsinline muted></video>
+  </div>
 
   <div>
     <button id="startButton">Start</button>
