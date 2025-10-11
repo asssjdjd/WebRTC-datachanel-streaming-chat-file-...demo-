@@ -11,8 +11,9 @@ import { initChat, setupDataChannels } from "./chat.js";
 import { initFileTransfer } from "./file.js";
 import { startScreenShare, stopScreenShare } from "./video.js";
 
-const SERVER_URL = "http://localhost:8080";
-const socket = io(SERVER_URL);
+// Kết nối đến cùng domain mà trang web được tải, nhưng qua đường dẫn /signaling/
+// Điều này đảm bảo kết nối sử dụng HTTPS nếu trang web đang dùng HTTPS.
+const socket = io({ path: "/signaling/socket.io/" });
 const offerOptions = {
   offerToReceiveVideo: 1,
   offerToReceiveAudio: 1,
