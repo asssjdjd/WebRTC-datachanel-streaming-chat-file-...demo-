@@ -1,7 +1,7 @@
 'use strict';
 
 import { trace } from './client.js';
-import { appendMessage, getActiveChannel } from './chat.js';
+import { appendMessage, getActiveChannel, getShortDeviceName } from './chat.js';
 
 const sendFileBtn = document.getElementById('sendFile');
 const fileInput = document.getElementById('fileInput');
@@ -38,7 +38,8 @@ export function sendFile() {
     type: 'file-meta',
     name: file.name,
     size: file.size,
-    mimeType: file.type
+    mimeType: file.type,
+    senderName: getShortDeviceName(navigator.userAgent)
   }));
   
   // Send file in chunks
@@ -92,7 +93,8 @@ export function handleFileMessage(data, chatArea) {
       receiveBuffer = [];
       receivedSize = 0;
       console.log('📁 File metadata received:', fileMetadata);
-      appendMessage('Remote', `📁 Receiving file: ${data.name} (${formatBytes(data.size)})`);
+      const senderName = data.senderName || 'Remote';
+      appendMessage(senderName, `📁 Receiving file: ${data.name} (${formatBytes(data.size)})`);
     }
     // File end signal
     else if (data.type === 'file-end') {

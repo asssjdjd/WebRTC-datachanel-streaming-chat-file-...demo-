@@ -12,18 +12,20 @@
   <h1>WebRTC Demo — Video + Chat + File Transfer</h1>
 
    <div id="videoGrid">
-    <video id="localVideo" autoplay playsinline muted></video>
+    <div id="thumbnail-container">
+        <video id="localVideo" autoplay playsinline muted></video>
+    </div>
   </div>
 
-  <div>
+  <div id="controls-container">
     <button id="startButton">Start</button>
     <button id="callButton">Call</button>
     <button id="hangupButton">Hang Up</button>
     <button id="chatButton">Chat</button>
     <button id="muteButton">Mute</button>
     <button id="hideVideoButton">Hide Video</button>
-    <button id="screenShareButton" disabled>Share Screen</button>
-    <button id="recordButton" disabled>Start Recording</button>
+    <button id="screenShareButton">Share Screen</button>
+    <button id="recordButton">Start Recording</button>
   </div>
 
   <div id="chatBox" style="display: none;">

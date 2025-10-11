@@ -1,22 +1,30 @@
-"use strict";
-
 import http from "http";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 
 const app = http.createServer();
+
 const io = new Server(app, {
   cors: { origin: "*" },
 });
 
-app.listen(8080, () => {
+app.listen(7727, () => {
   console.log("Signaling Server is listening on port 8080");
 });
 
-const rooms: Record<string, string[]> = {};
+const rooms: { [key: string]: string[] } = {};
 
-io.sockets.on("connection", (socket) => {
+io.sockets.on("connection", (socket: Socket) => {
   socket.on("join-room", (roomID: string) => {
     const usersInThisRoom = rooms[roomID] || [];
+
+    if (usersInThisRoom.length >= 4) {
+      console.log(
+        `User ${socket.id} failed to join room ${roomID}: room is full.`
+      );
+      socket.emit("room-full", roomID);
+      return;
+    }
+
     rooms[roomID] = [...usersInThisRoom, socket.id];
     socket.join(roomID);
 
@@ -57,6 +65,18 @@ io.sockets.on("connection", (socket) => {
         socket.to(roomID).emit("user-left", socket.id);
         break;
       }
+    }
+  });
+
+  socket.on("leave-room", (roomID: string) => {
+    if (!roomID) return;
+    const usersInRoom = rooms[roomID] || [];
+    const newUsers = usersInRoom.filter((id) => id !== socket.id);
+    if (newUsers.length !== usersInRoom.length) {
+      rooms[roomID] = newUsers;
+      socket.leave(roomID);
+      socket.to(roomID).emit("user-left", socket.id);
+      console.log(`User ${socket.id} left room ${roomID}.`);
     }
   });
 });

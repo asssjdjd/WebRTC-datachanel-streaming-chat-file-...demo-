@@ -20,7 +20,7 @@ const offerOptions = {
 
 export let localStream;
 const peerConnections = {
-  // 'socketID': RTCPeerConnection  
+  // 'socketID': RTCPeerConnection
 };
 
 // Track/send state
@@ -35,6 +35,7 @@ const startButton = document.getElementById("startButton");
 const callButton = document.getElementById("callButton");
 const hangupButton = document.getElementById("hangupButton");
 const stopButton = document.getElementById("stopButton");
+const chatButton = document.getElementById("chatButton");
 
 const muteButton = document.getElementById("muteButton");
 const hideVideoButton = document.getElementById("hideVideoButton");
@@ -42,12 +43,14 @@ const screenShareButton = document.getElementById("screenShareButton");
 const recordButton = document.getElementById("recordButton");
 
 const localVideo = document.getElementById("localVideo");
+const chatBox = document.getElementById("chatBox");
 
 callButton.disabled = true;
 hangupButton.disabled = true;
 muteButton.disabled = true;
 hideVideoButton.disabled = true;
 screenShareButton.disabled = true;
+chatButton.disabled = true;
 recordButton.disabled = true;
 
 // Initialize modules
@@ -69,7 +72,8 @@ function applyLocalTrackState() {
       pc.getSenders().forEach((sender) => {
         if (!sender.track) return;
         if (sender.track.kind === "audio") sender.track.enabled = !isMuted;
-        if (sender.track.kind === "video") sender.track.enabled = !isVideoHidden;
+        if (sender.track.kind === "video")
+          sender.track.enabled = !isVideoHidden;
       });
     } catch (e) {
       // ignore
@@ -90,7 +94,6 @@ hideVideoButton.addEventListener("click", () => {
   applyLocalTrackState();
 });
 
-
 // Screen sharing button handler
 screenShareButton.addEventListener("click", () => {
   if (screenShareButton.textContent === "Share Screen") {
@@ -99,7 +102,9 @@ screenShareButton.addEventListener("click", () => {
         // replace video tracks on existing peer connections with the screen track
         const screenTrack = screenStream.getVideoTracks()[0];
         Object.entries(peerConnections).forEach(([peerId, pc]) => {
-          const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
+          const sender = pc
+            .getSenders()
+            .find((s) => s.track && s.track.kind === "video");
           if (sender && sender.replaceTrack) {
             sender.replaceTrack(screenTrack);
           } else {
@@ -107,15 +112,17 @@ screenShareButton.addEventListener("click", () => {
             if (sender) pc.removeTrack(sender);
             pc.addTrack(screenTrack, screenStream);
             // create an offer for renegotiation so the remote side gets the new track
-            pc.createOffer().then((offer) => {
-              return pc.setLocalDescription(offer).then(() => {
-                socket.emit("send-offer", {
-                  userToSignal: peerId,
-                  callerID: socket.id,
-                  signal: offer,
+            pc.createOffer()
+              .then((offer) => {
+                return pc.setLocalDescription(offer).then(() => {
+                  socket.emit("send-offer", {
+                    userToSignal: peerId,
+                    callerID: socket.id,
+                    signal: offer,
+                  });
                 });
-              });
-            }).catch((e) => trace(`Renegotiation offer failed: ${e}`));
+              })
+              .catch((e) => trace(`Renegotiation offer failed: ${e}`));
           }
         });
         screenShareButton.textContent = "Stop Sharing";
@@ -127,32 +134,36 @@ screenShareButton.addEventListener("click", () => {
     // attempt to restore camera track from localStream
     const camTrack = localStream ? localStream.getVideoTracks()[0] : null;
     Object.entries(peerConnections).forEach(([peerId, pc]) => {
-      const sender = pc.getSenders().find((s) => s.track && s.track.kind === "video");
+      const sender = pc
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
       if (sender && camTrack) {
         if (sender.replaceTrack) {
           sender.replaceTrack(camTrack);
         } else {
           if (sender) pc.removeTrack(sender);
           pc.addTrack(camTrack, localStream);
-          pc.createOffer().then((offer) => {
-            return pc.setLocalDescription(offer).then(() => {
-              socket.emit("send-offer", {
-                userToSignal: peerId,
-                callerID: socket.id,
-                signal: offer,
+          pc.createOffer()
+            .then((offer) => {
+              return pc.setLocalDescription(offer).then(() => {
+                socket.emit("send-offer", {
+                  userToSignal: peerId,
+                  callerID: socket.id,
+                  signal: offer,
+                });
               });
-            });
-          }).catch((e) => trace(`Renegotiation offer failed: ${e}`));
+            })
+            .catch((e) => trace(`Renegotiation offer failed: ${e}`));
         }
       }
     });
     // restore preview to camera stream
     setLocalPreviewVisible(true);
-    if (localStream) document.getElementById("localVideo").srcObject = localStream;
+    if (localStream)
+      document.getElementById("localVideo").srcObject = localStream;
     screenShareButton.textContent = "Share Screen";
   }
 });
-
 
 // === Signaling Server Handlers ===
 socket.on("connect", () => {
@@ -166,7 +177,7 @@ socket.on("all-users", (users) => {
     // return;
   }
 
-  if(users.length === 1) {
+  if (users.length === 1) {
     trace("only one user in the room");
     trace("room id is " + roomID);
     // return;
@@ -199,7 +210,11 @@ socket.on("offer-received", (payload) => {
   }
   pc.setRemoteDescription(new RTCSessionDescription(payload.signal))
     .then(() => pc.createAnswer())
-    .then((answer) => pc.setLocalDescription(new RTCSessionDescription(answer)).then(() => answer))
+    .then((answer) =>
+      pc
+        .setLocalDescription(new RTCSessionDescription(answer))
+        .then(() => answer)
+    )
     .then((answer) => {
       trace(`Sending answer to ${payload.callerID}`);
       socket.emit("send-answer", {
@@ -230,26 +245,48 @@ socket.on("user-left", (id) => {
   const videoToRemove = document.getElementById(`video-${id}`);
   if (videoToRemove) {
     videoToRemove.remove();
+    updateVideoGridLayout(); // <-- THÊM DÒNG NÀY
   }
+});
+
+socket.on("room-full", (roomID) => {
+  trace(`Could not join room "${roomID}": The room is full.`);
+  alert(`The room "${roomID}" is full (max 4 participants).`);
+
+  // Reset UI state to allow trying again
+  callButton.disabled = false;
+  hangupButton.disabled = true;
 });
 
 // === Peer Connection Handlers ===
 function createPeerConnection(partnerSocketId, isReceiver = false) {
   // configuration for RTCPeerConnection
   const configuration = {
-    'iceServers': [{
-    'urls': 'stun:stun.l.google.com:19302'
-  }, {
-    // A TURN server you control. Use your own!
-    urls: [ 
-        'turn:turn.mydomain.com:3478?transport=udp',
-        'turn:turn.mydomain.com:3478?transport=tcp',
-        'turns:turn.mydomain.com:5349?transport=tcp'
-      ],
-      username: 'webrtcuser',
-      credential: 'webrtcpass'
-    }
-  ]
+    iceServers: [
+      {
+        urls: "stun:stun.l.google.com:19302",
+      },
+      {
+        urls: "turn:asia.relay.metered.ca:80",
+        username: "1b023c79e1fbae5deb13f028",
+        credential: "MPwnLXge/lfdRRzl",
+      },
+      {
+        urls: "turn:asia.relay.metered.ca:80?transport=tcp",
+        username: "1b023c79e1fbae5deb13f028",
+        credential: "MPwnLXge/lfdRRzl",
+      },
+      {
+        urls: "turn:asia.relay.metered.ca:443",
+        username: "1b023c79e1fbae5deb13f028",
+        credential: "MPwnLXge/lfdRRzl",
+      },
+      {
+        urls: "turns:asia.relay.metered.ca:443?transport=tcp",
+        username: "1b023c79e1fbae5deb13f028",
+        credential: "MPwnLXge/lfdRRzl",
+      },
+    ],
   };
   const pc = new RTCPeerConnection(configuration);
 
@@ -267,7 +304,7 @@ function createPeerConnection(partnerSocketId, isReceiver = false) {
 
   pc.onaddstream = (event) => {
     trace(`Received remote stream from ${partnerSocketId}`);
-    const videoGrid = document.getElementById("videoGrid");
+    const videoGrid = document.getElementById("thumbnail-container");
     const video = document.createElement("video");
 
     video.id = `video-${partnerSocketId}`;
@@ -276,6 +313,7 @@ function createPeerConnection(partnerSocketId, isReceiver = false) {
     video.playsInline = true;
     setupRemoteVideoEvents(video);
     videoGrid.appendChild(video);
+    updateVideoGridLayout();
   };
 
   if (localStream) {
@@ -306,6 +344,7 @@ function startAction() {
       // ensure local preview visibility matches the flag
       setLocalPreviewVisible(!isVideoHidden);
 
+      updateVideoGridLayout();
       callButton.disabled = false;
     })
     .catch((error) => {
@@ -321,6 +360,7 @@ function callAction() {
 
   if (roomID) {
     socket.emit("join-room", roomID);
+    chatButton.disabled = false; // Kích hoạt nút chat khi tham gia phòng
   } else {
     trace("Call cancelled, no room name provided.");
     callButton.disabled = false;
@@ -350,6 +390,7 @@ function hangupAction() {
     delete peerConnections[id];
     const videoToRemove = document.getElementById(`video-${id}`);
     if (videoToRemove) videoToRemove.remove();
+    updateVideoGridLayout();
   }
 
   // Clear remote video elements and reset UI to initial state
@@ -364,6 +405,7 @@ function hangupAction() {
   localStream = null;
   startButton.disabled = false;
   chatButton.disabled = true;
+  updateVideoGridLayout();
   setLocalPreviewVisible(true);
   callButton.disabled = true;
 }
@@ -380,8 +422,6 @@ function stopAction() {
   screenShareButton.disabled = true;
 }
 
-
-
 function clearRemoteVideos() {
   const videoGrid = document.getElementById("videoGrid");
   videoGrid.childNodes.forEach((child) => {
@@ -396,6 +436,14 @@ startButton.addEventListener("click", startAction);
 callButton.addEventListener("click", callAction);
 hangupButton.addEventListener("click", hangupAction);
 stopButton.addEventListener("click", stopAction);
+
+// === Layout Helper ===
+function updateVideoGridLayout() {
+  const videoGrid = document.getElementById("videoGrid");
+  // Đếm số video đang hiển thị (bao gồm cả local video)
+  const participantCount = videoGrid.getElementsByTagName("video").length;
+  videoGrid.dataset.participantCount = participantCount;
+}
 
 // === Helpers ===
 
