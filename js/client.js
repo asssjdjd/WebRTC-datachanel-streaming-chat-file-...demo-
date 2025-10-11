@@ -11,9 +11,8 @@ import { initChat, setupDataChannels } from "./chat.js";
 import { initFileTransfer } from "./file.js";
 import { startScreenShare, stopScreenShare } from "./video.js";
 
-// Kết nối đến cùng domain mà trang web được tải, nhưng qua đường dẫn /signaling/
-// Điều này đảm bảo kết nối sử dụng HTTPS nếu trang web đang dùng HTTPS.
-const socket = io({ path: "/signaling/socket.io/" });
+const SERVER_URL = "https://socket.kimvan.id.vn";
+const socket = io(SERVER_URL);
 const offerOptions = {
   offerToReceiveVideo: 1,
   offerToReceiveAudio: 1,
@@ -374,6 +373,8 @@ function hangupAction() {
   muteButton.disabled = true;
   hideVideoButton.disabled = true;
   screenShareButton.disabled = true;
+  const chatBox = document.getElementById("chatBox");
+  chatBox.style.display = "none";
 
   // Tell signaling server we're leaving the room so other peers remove us
   if (roomID) {
